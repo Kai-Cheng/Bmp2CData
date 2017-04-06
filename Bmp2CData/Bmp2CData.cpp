@@ -7,23 +7,39 @@
 #include <atlstr.h>
 #include <strsafe.h>
 
-
 void DisplayErrorBox(LPTSTR lpszFunction);
 
-_TCHAR *get_filename_extT(_TCHAR* filename) {
+_TCHAR *get_filename_extT(_TCHAR *filename)
+{
 	_TCHAR *dot = _tcsrchr(filename, _T('.'));
 	if (!dot || dot == filename) return NULL;
 	return dot + 1;
 }
-int get_filename_extT_(_TCHAR* filename) {
+
+int get_filename_extT_(_TCHAR *filename)
+{
 	_TCHAR *dot = _tcsrchr(filename, _T('.'));
+	if (!dot || dot == filename) return NULL;
+	return (int)(dot - filename);
+}
+
+char *get_filename_ext(char *filename)
+{
+	char *dot = strchr(filename, '.');
+	if (!dot || dot == filename) return NULL;
+	return dot + 1;
+}
+
+int get_filename_ext_(char *filename)
+{
+	char *dot = strchr(filename, '.');
 	if (!dot || dot == filename) return NULL;
 	return (int)(dot - filename);
 }
 
 const unsigned char pPad[] = { 0xFF, 0x80, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE };
 
-char *bin2CData(char *pData, unsigned long datasize, unsigned long widthBit, unsigned long shift, unsigned long *pCDataLen)
+char *bin2CData(char *pData, unsigned long datasize, unsigned long widthBit, unsigned long shift, unsigned long *pCDataLen, char *pArrayName)
 {
 	char dLenStr[10];
 	unsigned long cSrcdataLLen = 0;
@@ -40,6 +56,8 @@ char *bin2CData(char *pData, unsigned long datasize, unsigned long widthBit, uns
 
 	cSrcdataSize += (datasize * 6); // "0xFF, "
 	cSrcdataSize += ((datasize + 15) / 16) * 3; // "\t\r\n"
+	if (strlen(pArrayName))
+		cSrcdataSize += (unsigned long)(strlen(pArrayName) - 4);
 
 	char *pCSrcbuf = new char[cSrcdataSize];
 
@@ -50,7 +68,12 @@ char *bin2CData(char *pData, unsigned long datasize, unsigned long widthBit, uns
 	}
 	widthByte = (widthBit + 7) / 8;
 	bytePerLine = widthByte + shift;
-	strcpy(pCSrcbuf, "unsigned char data[");
+	strcpy(pCSrcbuf, "unsigned char ");
+	if (strlen(pArrayName))
+		strcat(pCSrcbuf, pArrayName);
+	else
+		strcat(pCSrcbuf, "data");
+	strcat(pCSrcbuf, "[");
 	_itoa(datasize, dLenStr, 10);
 	strcat(pCSrcbuf, dLenStr);
 	strcat(pCSrcbuf, "] =\r\n{");
@@ -125,20 +148,17 @@ int _tmain(int argc, _TCHAR* argv[])
 #if _DEBUG//[.4test.
 	argc = 1;
 	argv[0] = _T("Bmp2CData.exe");
-	//argv[1] = _T("D:\\WORKSPACE\\SW\\VS2015\\Bmp2CData\\Bmp2CData");
 	if (argc != 1)
 	{
-		_tprintf(TEXT("\nUsage: %s\n"), argv[0]);
+		_tprintf(TEXT("\nUsage: Bmp2CData.exe\n"));
 		return (-1);
 	}
-	//LPWSTR pBuf = new TCHAR[100];
-	//pBuf = argv[1];
 #else
 	if (argc == 2 && (!_tcscmp(argv[1], _T("-?")) || !_tcscmp(argv[1], _T("-h")) || !_tcscmp(argv[1], _T("-help"))))
 	{
-		printf("Version 1.00\r\n");
+		printf("Version 1.01\r\n");
 		_tprintf(TEXT("\nUsage: %s\n"), argv[0]);
-		printf("This program built for Win8.1x64-Win32\n");
+		//printf("This program built for Win8.1x64-Win32\n");
 		printf("Report error to kai.cheng.wang@gmail.com\n");
 		return 0;
 	}
@@ -150,9 +170,7 @@ int _tmain(int argc, _TCHAR* argv[])
 #endif//].
 
 	currentPahtlength = GetCurrentDirectory(0, NULL);
-	currentPahtlength += 1;
-	//unsigned char *pbuf = new unsigned char[currentPahtlength];
-	LPWSTR pBuf = new TCHAR[currentPahtlength];
+	LPWSTR pBuf = new TCHAR[currentPahtlength + 1];
 	dwError = GetCurrentDirectory(currentPahtlength, pBuf);
 	if (dwError == 0)
 	{
@@ -168,7 +186,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (length_of_arg > (MAX_PATH - 3))
 	{
 		_tprintf(TEXT("\nDirectory path is too long.\n"));
-		if (pBuf && currentPahtlength) delete[] pBuf;
+		if (pBuf) delete[] pBuf;
 		return (-1);
 	}
 
@@ -187,7 +205,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	if (INVALID_HANDLE_VALUE == hFind)
 	{
 		DisplayErrorBox(TEXT("FindFirstFile"));
-		if (pBuf && currentPahtlength) delete[] pBuf;
+		if (pBuf) delete[] pBuf;
 		return dwError;
 	}
 
@@ -300,8 +318,25 @@ int _tmain(int argc, _TCHAR* argv[])
 				//if (pBmpInfoHd->biWidth < 32) shiftSize = 4 - widthByte;
 				shiftSize = bytePerLine - widthByte;
 
+				// Get array name
+				pDir = get_filename_extT(ffd.cFileName);
+				pDir--;
+				size_t lenT = _tcslen(ffd.cFileName);
+				lenT -= (pDir - ffd.cFileName);
+				char *arrayName = new char[lenT + 1];
+#ifdef UNICODE
+				// TCHAR is unicode, convert to char
+				int ansiSize = WideCharToMultiByte(CP_ACP, 0, ffd.cFileName, -1, NULL, 0, NULL, false);
+				char *ansiStr = new char[ansiSize + 1];
+				// wideChar write to char
+				WideCharToMultiByte(CP_ACP, 0, ffd.cFileName, -1, ansiStr, ansiSize, NULL, false);
+				memset(ansiStr + get_filename_ext_(ansiStr), 0, ansiSize - get_filename_ext_(ansiStr));
+				strcpy(arrayName, ansiStr);
+				if (ansiStr) delete[] ansiStr;
+#endif
+				//printf("arrayName: %s\r\n", arrayName);
 				// Convert to C source data
-				pCSrcDate = bin2CData(pBitDate, actualDataSize, pBmpInfoHd->biWidth, shiftSize, &cSrcdataLLen);
+				pCSrcDate = bin2CData(pBitDate, actualDataSize, pBmpInfoHd->biWidth, shiftSize, &cSrcdataLLen, arrayName);
 				if (pCSrcDate == NULL)
 				{
 					printf("Error:Convert to C source\n");
@@ -314,13 +349,17 @@ int _tmain(int argc, _TCHAR* argv[])
 				_tcscpy(newDir, ffd.cFileName);
 				pDir = get_filename_extT(newDir);
 				_tcscpy(pDir, _T("c")); // *.c
+
 				// open new file
 				dwError = _wfopen_s(&pfile, newDir, _T("w+b"));
 				if (pfile == NULL)
 				{
-					//if (pBuf && currentPahtlength) delete[] pBuf;
-					//return dwError;
+					delete[] pbuf;
+					pbuf = NULL;
+					delete[] pCSrcDate;
+					pCSrcDate = NULL;
 					printf("Error:open file, w+b\n");
+					continue;
 				}
 				// write data to file
 				retSize = (unsigned long)fwrite(pCSrcDate, sizeof(char), cSrcdataLLen, pfile);
@@ -335,7 +374,6 @@ int _tmain(int argc, _TCHAR* argv[])
 					printf("Write file fail.");
 					continue;
 				}
-
 			}
 		}
 	} while (FindNextFile(hFind, &ffd) != 0);
@@ -348,11 +386,10 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	FindClose(hFind);
 
-	if (pBuf && currentPahtlength) delete[] pBuf;
+	if (pBuf) delete[] pBuf;
 	printf("Pause ENTER key to exit.");
 	getchar(); // wait new line
 	return (dwError == ERROR_NO_MORE_FILES) ? 0 : dwError;
-
 }
 
 void DisplayErrorBox(LPTSTR lpszFunction)
