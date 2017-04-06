@@ -43,7 +43,7 @@ char *bin2CData(char *pData, unsigned long datasize, unsigned long widthBit, uns
 {
 	char dLenStr[10];
 	unsigned long cSrcdataLLen = 0;
-	unsigned long cSrcdataSize = 35;
+	unsigned long cSrcdataSize = 37;
 	unsigned long bytePerLine = 0;
 	unsigned long widthByte = 0;
 	unsigned long dataIndex = 0;
@@ -123,7 +123,7 @@ char *bin2CData(char *pData, unsigned long datasize, unsigned long widthBit, uns
 			dataIndex += shift;
 		}
 	}
-	strcat(pCSrcbuf, "\r\n};");
+	strcat(pCSrcbuf, "\r\n};\r\n");
 	cSrcdataLLen = (unsigned long)strlen(pCSrcbuf);
 	*pCDataLen = cSrcdataLLen;
 	return pCSrcbuf;
