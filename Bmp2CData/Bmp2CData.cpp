@@ -156,7 +156,7 @@ int _tmain(int argc, _TCHAR* argv[])
 #else
 	if (argc == 2 && (!_tcscmp(argv[1], _T("-?")) || !_tcscmp(argv[1], _T("-h")) || !_tcscmp(argv[1], _T("-help"))))
 	{
-		printf("Version 1.01\r\n");
+		printf("Version 1.02\r\n");
 		_tprintf(TEXT("\nUsage: %s\n"), argv[0]);
 		//printf("This program built for Win8.1x64-Win32\n");
 		printf("Report error to kai.cheng.wang@gmail.com\n");
@@ -219,6 +219,7 @@ int _tmain(int argc, _TCHAR* argv[])
 	unsigned long  bytePerLine = 0;
 	unsigned long  shiftSize = 0;
 	unsigned long  actualDataSize = 0;
+	unsigned long  outIndex = 0;
 	PBITMAPFILEHEADER pBmpHd;
 	PBITMAPINFOHEADER pBmpInfoHd;
 	char *pBitDate;
@@ -335,8 +336,20 @@ int _tmain(int argc, _TCHAR* argv[])
 				if (ansiStr) delete[] ansiStr;
 #endif
 				//printf("arrayName: %s\r\n", arrayName);
+				// invert top and bottom
+				char *pBinInvDate = new char[pBmpInfoHd->biSizeImage + 1];
+				unsigned long dataIndex;
+
+				memset(pBinInvDate, 0, pBmpInfoHd->biSizeImage + 1);
+
+				outIndex = bytePerLine * pBmpInfoHd->biHeight; // shift to last byte.
+				for (dataIndex = 0; (dataIndex + bytePerLine) < pBmpInfoHd->biSizeImage; dataIndex += bytePerLine, outIndex -= bytePerLine)
+				{
+					memcpy(pBinInvDate + (outIndex - bytePerLine), pBitDate + dataIndex, bytePerLine);
+				}
+
 				// Convert to C source data
-				pCSrcDate = bin2CData(pBitDate, actualDataSize, pBmpInfoHd->biWidth, shiftSize, &cSrcdataLLen, arrayName);
+				pCSrcDate = bin2CData(pBinInvDate, actualDataSize, pBmpInfoHd->biWidth, shiftSize, &cSrcdataLLen, arrayName);
 				if (pCSrcDate == NULL)
 				{
 					printf("Error:Convert to C source\n");
